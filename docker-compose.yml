@@ -1,0 +1,21 @@
+services:
+  claude-usage:
+    build: .
+    image: claude-code-usage
+    container_name: claude-usage
+    ports:
+      - "127.0.0.1:4747:4747"   # drop the 127.0.0.1 prefix to expose it on the LAN
+    volumes:
+      # your Claude Code data. Read-only is enough for every chart; drop the
+      # ":ro" if you want the Settings card (Reduce cost page) to be able to
+      # write cleanupPeriodDays / promptCacheTtl into settings.json for you.
+      - ${CLAUDE_HOME:-${HOME}/.claude}:/claude:ro
+      # parsed-transcript cache, so restarts are fast and deleted transcripts stay archived
+      - claude-usage-cache:/app/cache
+    environment:
+      CLAUDE_HOME: /claude
+      RESCAN_SECONDS: 30
+    restart: unless-stopped
+
+volumes:
+  claude-usage-cache:

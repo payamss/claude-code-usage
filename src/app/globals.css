@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---- design tokens (light) ---- */
+:root {
+  --page: #f9f9f7;
+  --surface: #fcfcfb;
+  --surface-2: #f0efec;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --muted: #898781;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --line: rgba(11, 11, 11, 0.10);
+  --accent: #2a78d6;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+  --s5: #e87ba4; --s6: #008300; --s7: #4a3aa7; --s8: #e34948;
+  --shadow: 0 8px 30px rgba(0, 0, 0, .12);
+  color-scheme: light;
+}
+.dark {
+  --page: #0d0d0d;
+  --surface: #1a1a19;
+  --surface-2: #232322;
+  --ink: #ffffff;
+  --ink-2: #c3c2b7;
+  --muted: #898781;
+  --grid: #2c2c2a;
+  --axis: #383835;
+  --line: rgba(255, 255, 255, .10);
+  --accent: #3987e5;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+  --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
+  --shadow: 0 8px 30px rgba(0, 0, 0, .5);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-page: var(--page);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-muted: var(--muted);
+  --color-grid: var(--grid);
+  --color-axis: var(--axis);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-s1: var(--s1); --color-s2: var(--s2); --color-s3: var(--s3); --color-s4: var(--s4);
+  --color-s5: var(--s5); --color-s6: var(--s6); --color-s7: var(--s7); --color-s8: var(--s8);
+  --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --shadow-pop: var(--shadow);
+}
+
+html { background: var(--page); color: var(--ink); }
+body { font-family: var(--font-sans); font-size: 14px; line-height: 1.45; }
+html[lang="fa"] body { font-family: var(--font-vazir), Vazirmatn, "Segoe UI", Tahoma, system-ui, sans-serif; line-height: 1.75; }
+html[lang="fa"] .prose, html[lang="fa"] .finding p, html[lang="fa"] .finding li { line-height: 1.9; }
+
+/* text flows with its container; never split a word, never leave a lone last word */
+p, li, dd, dt, .lead { text-wrap: pretty; overflow-wrap: break-word; }
+h1, h2, h3 { text-wrap: balance; }
+/* long prose reads better in columns than in one very wide line */
+.prose-cols { columns: 34rem auto; column-gap: 2.5rem; }
+.prose-cols > * { break-inside: avoid; }
+/* a heading must never be the last thing in a column */
+.prose-cols h3 { break-after: avoid; margin-top: 0; }
+.prose-cols > h3 ~ h3 { margin-top: 1.4rem; }
+
+/* numbers stay LTR / Latin-aligned in RTL layouts */
+html[dir="rtl"] .num { direction: ltr; text-align: left; }
+html[dir="rtl"] .ltr { direction: ltr; unicode-bidi: isolate; text-align: left; }
+.num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+
+/* rich text blocks coming from the i18n files */
+.prose h3 { font-size: 15px; font-weight: 650; margin: 22px 0 6px; }
+.prose p, .prose li { color: var(--ink-2); }
+.prose strong { color: var(--ink); }
+.prose ul { padding-inline-start: 18px; list-style: disc; margin: 6px 0; }
+.prose li { margin: 2px 0; }
+.prose pre { background: var(--surface-2); padding: 10px 12px; border-radius: 8px; overflow: auto; font-size: 12px; direction: ltr; text-align: left; margin: 8px 0; }
+.prose code, .finding code { font-family: ui-monospace, Consolas, monospace; font-size: 12px; background: var(--surface-2); padding: 1px 5px; border-radius: 4px; direction: ltr; unicode-bidi: isolate; }
+.prose a { color: var(--accent); }
+.prose dt { font-weight: 600; margin-top: 12px; }
+.prose dd { margin: 2px 0 0 0; color: var(--ink-2); }
+.finding p { color: var(--ink-2); font-size: 13px; margin: 4px 0; }
+.finding ul { padding-inline-start: 18px; list-style: disc; color: var(--ink-2); font-size: 13px; margin-top: 6px; }
+.finding .pill { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 10px; background: #fab21933; }
+
+/* scrollbars a bit calmer */
+* { scrollbar-width: thin; }

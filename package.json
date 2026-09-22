@@ -1,0 +1,54 @@
+{
+  "name": "claude-code-usage",
+  "version": "1.0.0",
+  "private": false,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start -p 4747",
+    "lint": "eslint",
+    "docker": "docker compose up -d --build",
+    "check:i18n": "node scripts/check-i18n.mjs --all",
+    "icons:gen": "node scripts/gen-icons.mjs",
+    "prices:refresh": "node -e \"fetch(process.env.APP_URL||'http://localhost:4747/api/prices',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action:'refresh'})}).then(r=>r.json()).then(j=>console.log(j.ok?`ok: ${j.found} Claude models, ${j.updated.length} price(s) changed, ${j.added.length} new`:`failed: ${j.error}`)).catch(e=>{console.error('is the app running?',e.message);process.exit(1)})\""
+  },
+  "dependencies": {
+    "next": "16.3.5",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.5",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  },
+  "description": "Local dashboard for Claude Code token usage, cost and what actually burns the tokens.",
+  "license": "AGPL-3.0-or-later",
+  "author": {
+    "name": "Payam Shariat",
+    "email": "payam.shariat@gmail.com",
+    "url": "https://github.com/payamss"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/payamss/Claude-Code-Usage.git"
+  },
+  "homepage": "https://github.com/payamss/Claude-Code-Usage#readme",
+  "bugs": {
+    "url": "https://github.com/payamss/Claude-Code-Usage/issues"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "usage",
+    "cost",
+    "tokens",
+    "dashboard",
+    "anthropic"
+  ]
+}
