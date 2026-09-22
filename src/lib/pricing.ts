@@ -1,6 +1,6 @@
 // USD per 1M tokens: [input, output, cacheWrite5m, cacheWrite1h, cacheRead]
 // Cache write = 1.25x input (5m TTL) / 2x input (1h TTL); cache read = 0.1x input,
-// except Fable 5.1 whose cache read is $0.25/M.
+// except Fable 5.1 ($0.25/M) and Opus 5.5 ($0.20/M, 0.05x input).
 export type PriceRow = [number, number, number, number, number];
 
 /**
@@ -11,6 +11,7 @@ export type PriceRow = [number, number, number, number, number];
 export const BUILTIN_UPDATED = '2026-09-22';
 
 export const BUILTIN_PRICES: Record<string, PriceRow> = {
+  'claude-opus-5-5': [4, 20, 5, 8, 0.2],
   'claude-opus-5': [5, 25, 6.25, 10, 0.5],
   'claude-opus-4-8': [5, 25, 6.25, 10, 0.5],
   'claude-opus-4-7': [5, 25, 6.25, 10, 0.5],
@@ -50,8 +51,11 @@ export function addUsage<T extends Usage>(a: T, b: Usage): T {
 
 export function priceFor(model: string): PriceRow | null {
   if (PRICES[model]) return PRICES[model];
-  // tolerate date-suffixed ids like claude-sonnet-5-20260101
-  const base = Object.keys(PRICES).find((k) => model && model.startsWith(k + '-'));
+  // tolerate date-suffixed ids like claude-sonnet-5-20260101; longest key wins so
+  // claude-opus-5-5-… is not priced as claude-opus-5
+  const base = Object.keys(PRICES)
+    .filter((k) => model && model.startsWith(k + '-'))
+    .sort((a, b) => b.length - a.length)[0];
   return base ? PRICES[base] : null;
 }
 

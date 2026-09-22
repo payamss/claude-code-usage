@@ -119,6 +119,7 @@ totals come out roughly 2× too high.
 
 | Model | input | output | cache write 5m | cache write 1h | cache read |
 |---|---|---|---|---|---|
+| claude-opus-5-5 | 4 | 20 | 5 | 8 | 0.20 |
 | claude-opus-5 / opus-4-8 | 5 | 25 | 6.25 | 10 | 0.50 |
 | claude-sonnet-5 | 2 | 10 | 2.50 | 4 | 0.20 |
 | claude-fable-5-1 | 10 | 50 | 12.50 | 20 | 0.25 |
