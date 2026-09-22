@@ -32,15 +32,15 @@
   "author": {
     "name": "Payam Shariat",
     "email": "payam.shariat@gmail.com",
-    "url": "https://github.com/payamss"
+    "url": "https://shariat.de"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/payamss/Claude-Code-Usage.git"
+    "url": "git+https://github.com/payamss/claude-code-usage.git"
   },
-  "homepage": "https://github.com/payamss/Claude-Code-Usage#readme",
+  "homepage": "https://github.com/payamss/claude-code-usage#readme",
   "bugs": {
-    "url": "https://github.com/payamss/Claude-Code-Usage/issues"
+    "url": "https://github.com/payamss/claude-code-usage/issues"
   },
   "keywords": [
     "claude",

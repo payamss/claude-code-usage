@@ -22,7 +22,7 @@ out of the box.
 ## Quick start
 
 ```bash
-git clone <your-fork-or-this-repo> claude-code-usage
+git clone https://github.com/payamss/claude-code-usage.git
 cd claude-code-usage
 npm install
 npm run build
@@ -207,11 +207,14 @@ language. PRs with new languages are welcome.
 
 ## Author & contributing
 
-Created by **[Payam Shariat](https://github.com/payamss)** — the concept,
-design and implementation are mine, released as open source under the AGPL so
-others can use, study and build on it under the same terms.
+Created by **[Payam Shariat](https://shariat.de)**, a fullstack developer based
+in Germany — the concept, design and implementation are mine, released as open
+source under the AGPL so others can use, study and build on it under the same
+terms.
 
-- Repo: [github.com/payamss/Claude-Code-Usage](https://github.com/payamss/Claude-Code-Usage)
+- Website: [shariat.de](https://shariat.de) — who I am and what else I build
+- GitHub: [github.com/payamss](https://github.com/payamss)
+- Repo: [github.com/payamss/claude-code-usage](https://github.com/payamss/claude-code-usage)
 - Contact: payam.shariat@gmail.com
 
 Issues and PRs are welcome — bug fixes, new [languages](TRANSLATING.md), new

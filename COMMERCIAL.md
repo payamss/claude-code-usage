@@ -14,7 +14,7 @@ If that does not work for you — for example you want to
 
 a separate commercial licence is available.
 
-**Contact:** payam.shariat@gmail.com
+**Contact:** payam.shariat@gmail.com — [shariat.de](https://shariat.de)
 
 Using it privately (yourself, your team, your company's own machines) needs no
 permission and no licence fee.
