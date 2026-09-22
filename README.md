@@ -14,8 +14,9 @@ A local dashboard that reads the transcripts Claude Code writes to
 Nothing leaves your machine: the app only reads files under `~/.claude` and
 serves pages on localhost. No account, no API key, no telemetry.
 
-Built with **Next.js 16 · TypeScript · Tailwind v4**. English and فارسی (RTL)
-out of the box.
+Built with **Next.js 16 · TypeScript · Tailwind v4**. Available in nine
+languages out of the box: English, Deutsch, Español, Français, Português
+(Brasil), 日本語, 한국어, 繁體中文 and فارسی (RTL).
 
 ![Overview: cost tiles, daily cost by model, per-model and per-project tables](docs/screenshots/overview.png)
 
@@ -204,13 +205,22 @@ names) are translated through the `labels`, `prefixes` and `suffixes` maps at
 the end of each file.
 
 ```bash
-cp src/i18n/en.json src/i18n/de.json    # translate the values
+cp src/i18n/en.json src/i18n/id.json    # translate the values
 npm run check:i18n                      # keys, placeholders, markup, _meta
 ```
 
-…then register it in `src/lib/i18n.tsx` (`import de from '@/i18n/de.json'` and
-add it to `LANGS`). The switcher in the header and on the Settings page picks
-it up automatically.
+…then register it in `src/lib/i18n.tsx`: import the JSON, add the code to the
+`Lang` type, and add entries to `LANGS` and `LOCALES` (the `Intl` locale used
+for dates and numbers). The switcher in the header and on the Settings page
+picks it up automatically.
+
+| Code | Language | Code | Language |
+|---|---|---|---|
+| `en` | English (source) | `ja` | 日本語 |
+| `de` | Deutsch | `ko` | 한국어 |
+| `es` | Español | `zh-TW` | 繁體中文 |
+| `fr` | Français | `fa` | فارسی (RTL) |
+| `pt` | Português (Brasil) | | |
 
 **[TRANSLATING.md](TRANSLATING.md)** has a ready-made prompt you can hand to an
 LLM agent, the full rules (what must never be translated), and the priority

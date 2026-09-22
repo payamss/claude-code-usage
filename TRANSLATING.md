@@ -5,15 +5,17 @@ source of truth; a translation is that file with the **same keys** and
 translated values.
 
 ```bash
-cp src/i18n/en.json src/i18n/de.json    # translate the values
+cp src/i18n/en.json src/i18n/id.json    # translate the values
 npm run check:i18n                      # validates every language file
 ```
 
-Then register it (two lines in `src/lib/i18n.tsx`):
+Then register it in `src/lib/i18n.tsx`:
 
 ```ts
-import de from '@/i18n/de.json';
-export const LANGS = { en, fa, de } as const;
+import id from '@/i18n/id.json';
+export type Lang = 'en' | 'fa' | /* … */ | 'id';
+export const LANGS = { /* … */, id: id as Dict };
+const LOCALES = { /* … */, id: 'id-ID' };   // Intl locale for dates/numbers
 ```
 
 The language switcher in the header and on the Settings page lists whatever is
@@ -113,8 +115,8 @@ into **<LANGUAGE>**.
 
 Write the complete file to `src/i18n/<LOCALE>.json` (UTF-8, 2-space indent),
 then run `npm run check:i18n` and fix everything it reports until it prints
-`✓ <LOCALE>`. Finally add the two import/registration lines in
-`src/lib/i18n.tsx`. Report which keys you were unsure about.
+`✓ <LOCALE>`. Finally register it in `src/lib/i18n.tsx` (import, `Lang` type,
+`LANGS`, `LOCALES`). Report which keys you were unsure about.
 
 ---
 
@@ -126,17 +128,17 @@ per-capita AI Usage Index):
 | Priority | Locale | Language | Why |
 |---|---|---|---|
 | — | `en` | English | done · US alone is 21–25% of usage |
-| 1 | `ja` | Japanese | top-5 country, strongly prefers localised tooling |
-| 2 | `ko` | Korean | top-5 country *and* top-5 per capita (3.7×) |
-| 3 | `pt-BR` | Portuguese (Brazil) | Brazil is the #3 country |
-| 4 | `fr` | French | #4 by web traffic, #2 by app downloads |
-| 5 | `de` | German | #4 by app downloads |
-| 6 | `es` | Spanish | large combined Spain + LatAm audience |
-| 7 | `zh-TW` | Chinese (Traditional) | active Taiwan/HK developer communities |
-| 8 | `id` | Indonesian | #5 by traffic, fast growth |
-| 9 | `hi` | Hindi | India is #2 overall (most devs use English, so optional) |
+| — | `ja` | Japanese | done · top-5 country, strongly prefers localised tooling |
+| — | `ko` | Korean | done · top-5 country *and* top-5 per capita (3.7×) |
+| — | `pt` | Portuguese (Brazil) | done · Brazil is the #3 country |
+| — | `fr` | French | done · #4 by web traffic, #2 by app downloads |
+| — | `de` | German | done · #4 by app downloads |
+| — | `es` | Spanish | done · large combined Spain + LatAm audience |
+| — | `zh-TW` | Chinese (Traditional) | done · active Taiwan/HK developer communities |
 | — | `fa` | Persian | done · RTL reference implementation |
-| — | `he` | Hebrew | Israel leads per capita (4.9×); RTL already supported |
+| 1 | `id` | Indonesian | #5 by traffic, fast growth |
+| 2 | `hi` | Hindi | India is #2 overall (most devs use English, so optional) |
+| 3 | `he` | Hebrew | Israel leads per capita (4.9×); RTL already supported |
 
 Sources: [Anthropic Economic Index — geography](https://www.anthropic.com/research/economic-index-geography),
 [India country brief](https://www.anthropic.com/research/india-brief-economic-index).
