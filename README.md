@@ -17,6 +17,10 @@ serves pages on localhost. No account, no API key, no telemetry.
 Built with **Next.js 16 · TypeScript · Tailwind v4**. English and فارسی (RTL)
 out of the box.
 
+![Overview: cost tiles, daily cost by model, per-model and per-project tables](docs/screenshots/overview.png)
+
+<sub>Project names and session titles are blurred in all screenshots.</sub>
+
 ---
 
 ## Quick start
@@ -91,6 +95,17 @@ docker compose logs -f
 
 The session drawer shows context size per call (with cache-miss and compaction
 markers), cumulative cost, the per-bucket breakdown and every prompt you typed.
+
+### Screenshots
+
+| | |
+|---|---|
+| **Where tokens go** — cost by category, split into ingest / carry / output | **Reduce cost** — findings from your own data, sorted by impact |
+| [![Where tokens go](docs/screenshots/burn.png)](docs/screenshots/burn.png) | [![Reduce cost](docs/screenshots/save.png)](docs/screenshots/save.png) |
+| **Session drawer** — context size per call with cache-miss (orange) and compaction (green) markers | **Lifetime** — Claude Code's own stats cache, including deleted days |
+| [![Session drawer](docs/screenshots/session.png)](docs/screenshots/session.png) | [![Lifetime](docs/screenshots/lifetime.png)](docs/screenshots/lifetime.png) |
+| **Settings** — `settings.json` keys, language, theme, data source, prices | **Dark theme** |
+| [![Settings](docs/screenshots/settings.png)](docs/screenshots/settings.png) | [![Overview in dark theme](docs/screenshots/overview-dark.png)](docs/screenshots/overview-dark.png) |
 
 ---
 
