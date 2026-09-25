@@ -68,6 +68,7 @@ export default function SessionDrawer() {
         <div className="grid gap-2 my-3 [grid-template-columns:repeat(auto-fit,minmax(140px,1fr))]">
           {kv.map(([l, v]) => <div key={l} className="bg-surface-2 rounded-lg px-2.5 py-2"><div className="text-[11px] text-muted">{l}</div><div className="font-semibold">{v}</div></div>)}
         </div>
+        {d.reported == null && <div className="text-xs text-muted -mt-1 mb-3">{t('dr.unloggedNote')}</div>}
         <H>{t('dr.ctxChart')}<Info k="ctx" /><span className="text-muted">{t('dr.ctxChartHint')}</span></H>
         <LineChart points={ctxPts} dots={ctxDots} color="var(--s7)" yFmt={(v) => tok(v)} startLabel={dtShort(calls[0]?.ts, locale)} endLabel={dtShort(calls[calls.length - 1]?.ts, locale)} emptyText={t('common.notEnough')} />
         <H>{t('dr.cum')}</H>

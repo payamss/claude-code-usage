@@ -4,7 +4,12 @@ import readline from 'node:readline';
 import { costOf, emptyUsage, addUsage, type Usage } from './pricing';
 import { analyzeConversation, mergeBuckets, type Analysis, type Bucket, type HeavyItem } from './analyze';
 
-export const CACHE_VERSION = 6;
+export const CACHE_VERSION = 10;
+
+// Output tokens per written character (text + tool input) and per character of a thinking block's
+// signature (thinking text itself is redacted). Fitted on complete messages: within ~2% in aggregate.
+const OUT_PER_CHAR = 0.4;
+const OUT_PER_SIG_CHAR = 0.28;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -39,6 +44,7 @@ export interface CostState {
   totalAPIDuration: number;
   totalToolDuration: number;
   totalDuration: number;
+  startTime: number | null; // when the process that wrote it started; after a resume it only covers that run
   totalLinesAdded: number;
   totalLinesRemoved: number;
   modelUsage: Record<string, unknown>;
@@ -209,6 +215,8 @@ export async function parseFile(file: string, isSubagent: boolean): Promise<File
     firstTs: null, lastTs: null, costState: null, apiDurationMs: 0, toolCalls: 0, stopReasons: {},
   };
   const turnByMsg = new Map<string, number>();   // message.id -> turn index
+  const stopByMsg = new Map<string, string>();   // message.id -> stop_reason of its last line
+  const estByTurn: { vis: number; sig: number }[] = []; // written chars per turn, for estimating a missing final output count
   const toolById = new Map<string, number>();    // tool_use id -> tools index
   let pendingPrompt = 0, pendingSys = 0;
   let lastSkill: number | null = null;   // tools index of a Skill call in the latest turn (its text arrives as a user message)
@@ -257,13 +265,22 @@ export async function parseFile(file: string, isSubagent: boolean): Promise<File
           outChars: 0, promptChars: pendingPrompt, sysChars: pendingSys, tools: [],
         });
         pendingPrompt = 0; pendingSys = 0; lastSkill = null;
-        if (m.stop_reason) r.stopReasons[m.stop_reason] = (r.stopReasons[m.stop_reason] || 0) + 1;
+      } else if (ti != null && m.usage) {
+        // one line is written per content block; only the last one carries the final output count
+        const turn = r.turns[ti];
+        Object.assign(turn, usageFromApi(m.usage));
+        turn.think = (m.usage.output_tokens_details && m.usage.output_tokens_details.thinking_tokens) || turn.think;
       }
+      if (ti != null && m.stop_reason) stopByMsg.set(key, m.stop_reason);
       if (ti != null && Array.isArray(m.content)) {
         const turn = r.turns[ti];
+        const est = estByTurn[ti] || (estByTurn[ti] = { vis: 0, sig: 0 });
         for (const b of m.content) {
           if (!b) continue;
           turn.outChars += blockChars(b);
+          if (b.type === 'text') est.vis += (b.text || '').length;
+          else if (b.type === 'tool_use') est.vis += JSON.stringify(b.input || {}).length;
+          else if (b.type === 'thinking') { est.vis += (b.thinking || '').length; est.sig += (b.signature || '').length; }
           if (b.type === 'tool_use') {
             const k = key + ':' + (b.id || '');
             if (toolById.has(k)) continue;
@@ -334,11 +351,20 @@ export async function parseFile(file: string, isSubagent: boolean): Promise<File
     if (type === 'cost-state') {
       r.costState = {
         totalCostUSD: o.totalCostUSD || 0, totalAPIDuration: o.totalAPIDuration || 0, totalToolDuration: o.totalToolDuration || 0,
-        totalDuration: o.totalDuration || 0, totalLinesAdded: o.totalLinesAdded || 0, totalLinesRemoved: o.totalLinesRemoved || 0, modelUsage: o.modelUsage || {},
+        totalDuration: o.totalDuration || 0, startTime: o.startTime || null, totalLinesAdded: o.totalLinesAdded || 0, totalLinesRemoved: o.totalLinesRemoved || 0, modelUsage: o.modelUsage || {},
       };
       continue;
     }
     if (type === 'system' && o.subtype === 'turn_duration' && o.durationMs) r.apiDurationMs += o.durationMs;
+  }
+  for (const s of stopByMsg.values()) r.stopReasons[s] = (r.stopReasons[s] || 0) + 1;
+  // Background subagents often never get their final line written (no stop_reason on any line), so the
+  // output count left is the near-zero one from the start of the stream. Estimate it from what was written.
+  for (const [key, ti] of turnByMsg) {
+    if (stopByMsg.has(key) || !estByTurn[ti]) continue;
+    const turn = r.turns[ti], e = estByTurn[ti];
+    const out = Math.round(OUT_PER_CHAR * e.vis + OUT_PER_SIG_CHAR * e.sig);
+    if (out > turn.output) { turn.output = out; turn.think = Math.max(turn.think, Math.round(OUT_PER_SIG_CHAR * e.sig)); }
   }
   return r;
 }
@@ -383,6 +409,12 @@ export class Scanner {
     try {
       const j = JSON.parse(fs.readFileSync(this.cacheFile, 'utf8'));
       if (j && j.v === CACHE_VERSION && j.files) this.cache = j.files;
+      else if (j && j.files) {
+        // parser changed: re-parse live files, but keep entries whose transcript Claude Code has deleted
+        for (const [rel, c] of Object.entries(j.files as Record<string, CacheEntry>)) {
+          if (c.project && !fs.existsSync(path.join(this.root, rel))) this.cache[rel] = c;
+        }
+      }
     } catch { /* no cache yet */ }
   }
 
@@ -522,6 +554,8 @@ export class Scanner {
 
       const firstTs = turns.length ? turns[0].ts : main.firstTs;
       const lastTs = turns.length ? turns[turns.length - 1].ts : main.lastTs;
+      // a cost-state from a resumed run only covers that run, so it is not the session's total
+      const cs = main.costState && !(main.costState.startTime && firstTs && main.costState.startTime > Date.parse(firstTs) + 60_000) ? main.costState : null;
       sessions.push({
         id: s.id,
         projectDir: s.projectDir,
@@ -544,9 +578,9 @@ export class Scanner {
         models: Object.keys(byModel),
         byModel, usage, cost, think, efforts,
         unknownModel: unknown,
-        reported: main.costState ? main.costState.totalCostUSD : null,
-        linesAdded: main.costState ? main.costState.totalLinesAdded : null,
-        linesRemoved: main.costState ? main.costState.totalLinesRemoved : null,
+        reported: cs ? cs.totalCostUSD : null,
+        linesAdded: cs ? cs.totalLinesAdded : null,
+        linesRemoved: cs ? cs.totalLinesRemoved : null,
         stopReasons: main.stopReasons,
         turnList: turns,
         analysis: {

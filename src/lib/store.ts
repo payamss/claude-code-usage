@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { Scanner, type Session } from './parser';
+import { Scanner, CACHE_VERSION, type Session } from './parser';
 import { categoryOf, mergeBuckets, type Bucket } from './analyze';
 import { PRICES, shortModel, costOf, emptyUsage, addUsage, type Usage } from './pricing';
 import { loadPrices } from './prices';
@@ -12,10 +12,12 @@ export const CLAUDE_DIR = process.env.CLAUDE_DIR || path.join(CLAUDE_HOME, 'proj
 const RESCAN_AFTER_MS = Number(process.env.RESCAN_SECONDS || 30) * 1000;
 
 // One scanner per process; kept on globalThis so Next's dev HMR does not re-parse everything.
-const g = globalThis as unknown as { __claudeUsageScanner?: Scanner };
+// A parser change (new CACHE_VERSION) replaces it, so edited parsing takes effect without a restart.
+const g = globalThis as unknown as { __claudeUsageScanner?: Scanner; __claudeUsageScannerV?: number };
 export function getScanner(): Scanner {
   loadPrices(); // picks up cache/prices.json before anything is costed
-  if (!g.__claudeUsageScanner) {
+  if (!g.__claudeUsageScanner || g.__claudeUsageScannerV !== CACHE_VERSION) {
+    g.__claudeUsageScannerV = CACHE_VERSION;
     g.__claudeUsageScanner = new Scanner({ root: CLAUDE_DIR, cacheFile: path.join(process.cwd(), 'cache', 'files.json') });
   }
   return g.__claudeUsageScanner;
@@ -23,8 +25,27 @@ export function getScanner(): Scanner {
 
 export async function ensureFresh(force = false): Promise<Scanner> {
   const s = getScanner();
-  if (force || !s.lastScan || Date.now() - Date.parse(s.lastScan) > RESCAN_AFTER_MS) await s.scan();
+  if (force || !s.lastScan || Date.now() - Date.parse(s.lastScan) > RESCAN_AFTER_MS) {
+    await s.scan();
+    applyLastSessionTotals(s.sessions);
+  }
   return s;
+}
+
+// When a session exits, Claude Code saves its own totals per project in ~/.claude.json (lastCost, lastSessionId, …).
+// They include API calls that never reach a transcript, so they are the closest thing to /usage. They only cover
+// the last run of the process, so they are used only when that run started before the session's first message.
+const CLAUDE_JSON = process.env.CLAUDE_JSON || path.join(path.dirname(CLAUDE_HOME), '.claude.json');
+function applyLastSessionTotals(sessions: Session[]) {
+  let projects: Record<string, { lastSessionId?: string; lastCost?: number; lastStartTime?: number; lastLinesAdded?: number; lastLinesRemoved?: number }>;
+  try { projects = JSON.parse(fs.readFileSync(CLAUDE_JSON, 'utf8')).projects || {}; } catch { return; }
+  const byId = new Map(Object.values(projects).filter((p) => p && p.lastSessionId && typeof p.lastCost === 'number').map((p) => [p.lastSessionId!, p]));
+  for (const s of sessions) {
+    const p = byId.get(s.id);
+    if (!p || s.reported != null || !p.lastStartTime || !s.firstTs || p.lastStartTime > Date.parse(s.firstTs) + 60_000) continue;
+    s.reported = p.lastCost!;
+    if (s.linesAdded == null && typeof p.lastLinesAdded === 'number') { s.linesAdded = p.lastLinesAdded; s.linesRemoved = p.lastLinesRemoved ?? 0; }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -80,11 +101,11 @@ export function overview(scanner: Scanner, q: Query): Overview {
 
   for (const { s, turns, full } of selectSessions(scanner, q)) {
     const su = emptyUsage();
-    let sc = 0, subCost = 0;
+    let sc = 0, subCost = 0, think = 0;
     const sModels: Record<string, number> = {};
     for (const t of turns) {
       const day = localDay(t.ts);
-      sc += t.cost;
+      sc += t.cost; think += t.think || 0;
       if (t.sub) subCost += t.cost;
       addUsage(su, t);
       const bm = byModel[t.model] || (byModel[t.model] = { ...emptyUsage(), cost: 0, turns: 0 });
@@ -99,7 +120,7 @@ export function overview(scanner: Scanner, q: Query): Overview {
     if (s.unknownModel) for (const m of s.models) if (!PRICES[m] && m !== '<synthetic>') unknownModels.add(m);
 
     totals.cost += sc; totals.turns += turns.length; addUsage(totals, su); totals.subCost += subCost;
-    totals.prompts += s.prompts; totals.toolCalls += s.toolCalls; totals.apiMs += s.apiMs; totals.think += s.think;
+    totals.prompts += s.prompts; totals.toolCalls += s.toolCalls; totals.apiMs += s.apiMs; totals.think += think;
     totals.misses += s.analysis.misses; totals.missCost += s.analysis.missCost;
     if (s.reported != null && full) { totals.reported += s.reported; totals.reportedSessions++; }
 
@@ -124,7 +145,7 @@ export function overview(scanner: Scanner, q: Query): Overview {
       reported: s.reported, linesAdded: s.linesAdded, linesRemoved: s.linesRemoved,
       version: s.version, gitBranch: s.gitBranch,
       avgCtx: s.analysis.avgCtx, peakCtx: s.analysis.peakCtx, startupTokens: s.analysis.startupTokens,
-      misses: s.analysis.misses, resets: s.analysis.resets, crCost: s.analysis.crCost, think: s.think,
+      misses: s.analysis.misses, resets: s.analysis.resets, crCost: s.analysis.crCost, think,
     });
   }
 

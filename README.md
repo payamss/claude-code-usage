@@ -77,6 +77,7 @@ docker compose logs -f
 |---|---|---|
 | `CLAUDE_HOME` | `~/.claude` | Claude Code's config folder |
 | `CLAUDE_DIR` | `$CLAUDE_HOME/projects` | where the transcripts are |
+| `CLAUDE_JSON` | `~/.claude.json` | where Claude Code saves each project's last-session totals (for *Reported by CC*); optional |
 | `RESCAN_SECONDS` | `30` | how often a request re-checks files for changes |
 | `PORT` / `HOSTNAME` | `4747` / `127.0.0.1` | server binding (`npm start` / Docker) |
 
