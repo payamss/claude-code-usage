@@ -31,7 +31,7 @@ export default function OverviewView({ project }: { project: string | null }) {
         </>
       )}
       <div className="grid gap-2.5 mb-3.5 [grid-template-columns:repeat(auto-fit,minmax(150px,1fr))]">
-        <Tile label={t('overview.tile.cost')} info="cost" value={usd(tt.cost)} sub={t('common.perActiveDay', { cost: usd(tt.cost / days), n: days })} />
+        <Tile label={t('overview.tile.cost')} info="cost" value={usd(tt.cost)} sub={t('common.perActiveDay', { cost: usd(tt.cost / days), n: days }) + (tt.reportedUsed ? ' · ' + t('overview.tile.costReported', { n: tt.reportedUsed, est: usd(tt.estimate) }) : '')} />
         <Tile label={t('overview.tile.crShare')} info="cacheread" value={pct(tt.crCost, tt.cost)} sub={t('overview.tile.crShareSub', { cost: usd(tt.crCost) })} />
         <Tile label={t('overview.tile.misses')} info="misses" value={num(tt.misses)} sub={t('overview.tile.missesSub', { cost: usd(tt.missCost) })} />
         <Tile label={t('overview.tile.output')} info="output" value={tok(tt.output)} sub={t('overview.tile.outputSub', { pct: pct(tt.think, tt.output), n: tok(tt.think) })} />

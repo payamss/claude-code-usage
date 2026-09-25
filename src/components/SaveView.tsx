@@ -74,7 +74,7 @@ export default function SaveView() {
 
   const days = l.cleanupPeriodDays || 30;
   F.push({ level: days <= 30 ? 'warn' : 'good', impact: t('f.retention.days', { n: days }), title: t('f.retention.title', { days }),
-    body: t('f.retention.body', { first: dFull(l.firstSessionDate, locale), firstTx: o.byDay[0] ? dFull(parseDay(o.byDay[0].day), locale) : '?', last: l.lastCleanup ? dt(l.lastCleanup, locale) : '?', archived: t('common.archived') }),
+    body: t('f.retention.body', { first: dFull(l.firstDay, locale), firstTx: o.byDay[0] ? dFull(parseDay(o.byDay[0].day), locale) : '?', last: l.lastCleanup ? dt(l.lastCleanup, locale) : '?', archived: t('common.archived') }),
     tips: tips('f.retention', 1) });
 
   const order: Record<Level, number> = { hot: 0, warn: 1, note: 2, good: 3 };

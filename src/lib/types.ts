@@ -18,14 +18,14 @@ export interface SessionRow {
   id: string; projectKey: string; project: string; cwd: string; title: string; agentName: string | null; archived: boolean;
   firstTs: string | null; lastTs: string | null; wallMs: number; apiMs: number;
   prompts: number; turns: number; toolCalls: number; subagents: number;
-  models: string[]; usage: Usage; cost: number; subCost: number;
+  models: string[]; usage: Usage; cost: number; estimate: number; costReported: boolean; subCost: number;
   reported: number | null; linesAdded: number | null; linesRemoved: number | null;
   version: string | null; gitBranch: string | null;
   avgCtx: number; peakCtx: number; startupTokens: number; misses: number; resets: number; crCost: number; think: number;
 }
 
 export interface Totals extends Usage {
-  cost: number; reported: number; reportedSessions: number; turns: number; prompts: number; toolCalls: number; apiMs: number;
+  cost: number; estimate: number; reportedUsed: number; reported: number; reportedSessions: number; turns: number; prompts: number; toolCalls: number; apiMs: number;
   think: number; crCost: number; missCost: number; misses: number; subCost: number; sessions: number; projects: number;
 }
 
@@ -55,15 +55,18 @@ export interface Breakdown {
   whatIf: Record<string, { current: number; asSonnet: number | null }>;
 }
 
-export interface LifetimeModel extends Usage { model: string; short: string; cost: number | null }
+export interface LifetimeModel extends Usage { model: string; short: string; cost: number }
 export interface Lifetime {
   available: boolean; file: string;
-  lastComputedDate?: string; firstSessionDate?: string; totalSessions?: number; totalMessages?: number;
-  longestSession?: { sessionId: string; timestamp: string; duration: number; messageCount: number };
+  statsAvailable?: boolean; lastComputedDate?: string | null; firstDay?: string | null;
+  cost?: number; estimate?: number; reportedUsed?: number;
+  tx?: { cost: number; files: number; from: string | null; to: string | null };
+  statsOnly?: { cost: number; raw: number; days: number; from: string | null; to: string | null; factor: number };
+  sessions?: number; calls?: number;
+  longestSession?: { sessionId: string; timestamp: string; duration: number; messageCount: number } | null;
   hourCounts?: Record<string, number>;
-  dailyActivity?: { date: string; messageCount: number; sessionCount: number; toolCallCount: number }[];
-  dailyModelTokens?: { date: string; tokensByModel: Record<string, number> }[];
-  models?: LifetimeModel[]; cost?: number; cleanupPeriodDays?: number; lastCleanup?: string | null; settingsModel?: string | null; home?: string;
+  daily?: { date: string; tokensByModel: Record<string, number>; fromStats: boolean }[];
+  models?: LifetimeModel[]; cleanupPeriodDays?: number; lastCleanup?: string | null; settingsModel?: string | null; home?: string;
 }
 
 export interface SessionDetail {

@@ -71,7 +71,7 @@ export interface FileData {
 
 export interface SubagentMeta { agentType?: string; description?: string; [k: string]: unknown }
 
-export interface SessionTurn extends Turn { sub: boolean; cost: number }
+export interface SessionTurn extends Turn { sub: boolean; cost: number; toolN: number } // toolN: real tool calls (no pseudo entries)
 
 export interface SubRun {
   type: string;
@@ -125,6 +125,7 @@ export interface Session {
   efforts: Record<string, number>;
   unknownModel: boolean;
   reported: number | null;
+  reportedTo: number | null; // Claude Code's total covers calls up to this time (ms); null = the whole session
   linesAdded: number | null;
   linesRemoved: number | null;
   stopReasons: Record<string, number>;
@@ -510,10 +511,10 @@ export class Scanner {
     for (const s of bySession.values()) {
       const main = s.main || emptyMain;
       const turns: SessionTurn[] = [];
-      for (const t of main.turns) turns.push({ ...t, sub: false, cost: 0 });
+      for (const t of main.turns) turns.push({ ...t, sub: false, cost: 0, toolN: t.tools.filter((i) => !main.tools[i].pseudo).length });
       let subToolCalls = 0;
       for (const sa of s.subagents) {
-        for (const t of sa.data.turns) turns.push({ ...t, sub: true, cost: 0 });
+        for (const t of sa.data.turns) turns.push({ ...t, sub: true, cost: 0, toolN: t.tools.filter((i) => !sa.data.tools[i].pseudo).length });
         subToolCalls += sa.data.toolCalls;
       }
       turns.sort((a, b) => (a.ts || '').localeCompare(b.ts || ''));
@@ -579,6 +580,7 @@ export class Scanner {
         byModel, usage, cost, think, efforts,
         unknownModel: unknown,
         reported: cs ? cs.totalCostUSD : null,
+        reportedTo: null,
         linesAdded: cs ? cs.totalLinesAdded : null,
         linesRemoved: cs ? cs.totalLinesRemoved : null,
         stopReasons: main.stopReasons,

@@ -118,7 +118,7 @@ export function SessionsTable({ rows }: { rows: Overview['sessions'] }) {
                 <Td dim className="whitespace-nowrap">{dtShort(x.firstTs, locale)}</Td>
                 <Td title={x.title} className="max-w-[380px] truncate">{x.title}{x.subagents ? <span className="text-muted text-xs"> {t('common.agents', { n: x.subagents })}</span> : null}{x.archived && <Pill warn title={t('common.archivedHint')}>{t('common.archived')}</Pill>}</Td>
                 <Td dim title={x.cwd}><Link href={`/project/${encodeURIComponent(x.projectKey)}`} onClick={(e) => e.stopPropagation()} className="text-accent hover:underline">{x.project}</Link></Td>
-                <Td num><strong>{usd(x.cost)}</strong></Td><Td num>{x.turns}</Td><Td num>{x.prompts}</Td><Td num>{x.toolCalls}</Td>
+                <Td num title={x.costReported ? t('overview.costReportedHint', { est: usd(x.estimate) }) : undefined}><strong>{usd(x.cost)}</strong>{x.costReported && <sup className="text-accent ms-0.5">CC</sup>}</Td><Td num>{x.turns}</Td><Td num>{x.prompts}</Td><Td num>{x.toolCalls}</Td>
                 <Td num>{tok(x.avgCtx)}</Td><Td num>{x.misses || ''}</Td><Td num>{tok(x.usage.output)}</Td><Td num>{tok(x.usage.cr)}</Td>
                 <Td num>{dur(x.wallMs)}</Td><Td num>{dur(x.apiMs)}</Td><Td><Chips models={x.models} /></Td>
               </tr>
