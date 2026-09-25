@@ -3,6 +3,7 @@
 import { useT } from '@/lib/i18n';
 import { useApi } from '@/lib/app-context';
 import { usd, pct, num, tok, dt, dFull, parseDay } from '@/lib/format';
+import { shortModel } from '@/lib/models';
 import type { Overview, Breakdown, Lifetime } from '@/lib/types';
 import { Empty, Warn } from './ui';
 import SettingsCard from './SettingsCard';
@@ -10,6 +11,7 @@ import SettingsCard from './SettingsCard';
 type Level = 'hot' | 'warn' | 'note' | 'good';
 interface Finding { level: Level; impact: string; title: string; body: string; tips: string[] }
 
+const ratio = (r: number | null) => (r == null ? '?' : `${+r.toFixed(2)}×`);
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
 const BORDER: Record<Level, string> = { hot: 'border-s-s8', warn: 'border-s-s4', note: 'border-s-s7', good: 'border-s-s3' };
 
@@ -32,7 +34,7 @@ export default function SaveView() {
   const longCost = b.longSessions.reduce((a, x) => a + x.cost, 0);
   const longCr = b.longSessions.reduce((a, x) => a + x.crCost, 0);
   if (tt.crCost / total > 0.4) F.push({ level: 'hot', impact: usd(tt.crCost), title: t('f.long.title', { pct: pct(tt.crCost, total) }),
-    body: t('f.long.body', { detail: b.longSessions.length ? t('f.long.detail', { n: b.longSessions.length, cr: usd(longCr), cost: usd(longCost), ctx: tok(b.longSessions[0].avgCtx), title: esc(b.longSessions[0].title) }) : '' }),
+    body: t('f.long.body', { reread: b.reread ? usd(b.reread.cost) : '?', model: b.reread ? esc(shortModel(b.reread.model)) : '?', detail: b.longSessions.length ? t('f.long.detail', { n: b.longSessions.length, cr: usd(longCr), cost: usd(longCost), ctx: tok(b.longSessions[0].avgCtx), title: esc(b.longSessions[0].title) }) : '' }),
     tips: tips('f.long', 4) });
 
   if (tt.missCost > 5) F.push({ level: 'hot', impact: usd(tt.missCost), title: t('f.miss.title', { n: tt.misses }),
@@ -42,15 +44,32 @@ export default function SaveView() {
   const opus = Object.values(b.whatIf);
   if (opus.length) {
     const cur = opus.reduce((a, v) => a + v.current, 0), son = opus.reduce((a, v) => a + (v.asSonnet || 0), 0);
-    F.push({ level: 'warn', impact: usd(cur - son), title: t('f.model.title', { pct: pct(cur, total), son: usd(son), cur: usd(cur) }), body: t('f.model.body', { model: esc(l.settingsModel || 'not set') }), tips: tips('f.model', 3) });
+    // what Sonnet saves depends on the Opus version: e.g. Opus 5.5 reads the cache at the same price as Sonnet 5
+    const list = Object.entries(b.whatIf).sort((x, y) => y[1].current - x[1].current).map(([m, v]) => {
+      const p = { model: esc(shortModel(m)), cur: usd(v.current), son: usd(v.asSonnet || 0), out: ratio(v.outRatio), cr: ratio(v.crRatio) };
+      return v.crRatio != null && Math.abs(v.crRatio - 1) < 0.05 ? t('f.model.itemSameCr', p) : t('f.model.item', p);
+    }).join(' · ');
+    F.push({ level: 'warn', impact: usd(cur - son), title: t('f.model.title', { pct: pct(cur, total), son: usd(son), cur: usd(cur) }), body: t('f.model.body', { list, model: esc(l.settingsModel || 'not set') }), tips: tips('f.model', 3) });
   }
 
-  if (b.think / Math.max(1, b.output) > 0.15) F.push({ level: 'warn', impact: usd(b.think / 1e6 * 25 * 0.5), title: t('f.think.title', { pct: pct(b.think, b.output) }),
+  if (b.think / Math.max(1, b.output) > 0.15) F.push({ level: 'warn', impact: usd(b.thinkCost * 0.5), title: t('f.think.title', { pct: pct(b.think, b.output) }),
     body: t('f.think.body', { n: tok(b.think), efforts: Object.entries(b.efforts).map(([e, n]) => `${e} ${pct(n, tt.turns)}`).join(', ') }), tips: tips('f.think', 3) });
 
   const shell = cat('Shell commands');
-  if (shell.total / total > 0.1) F.push({ level: 'warn', impact: usd(shell.carryCost * 0.5), title: t('f.shell.title', { cost: usd(shell.total), pct: pct(shell.total, total) }),
-    body: t('f.shell.body', { n: num(shell.calls), tokens: tok(shell.ctxTokens), per: tok(shell.ctxTokens / Math.max(1, shell.calls)), carry: usd(shell.carryCost) }), tips: tips('f.shell', 4) });
+  if (shell.total / total > 0.1) {
+    // the advice depends on what the shell output mostly is: printed files need other levers than test logs
+    const kinds = b.shellKinds.filter((k) => k.total > 0), kTotal = kinds.reduce((a, k) => a + k.total, 0) || 1;
+    const share = (...ks: string[]) => kinds.filter((k) => ks.includes(k.kind)).reduce((a, k) => a + k.total, 0) / kTotal;
+    const list = kinds.slice(0, 5).map((k) => t('f.shell.kindItem', { kind: `<strong>${t('shell.kind.' + k.kind)}</strong>`, cost: usd(k.total), pct: pct(k.total, kTotal) })).join(', ');
+    const shellTips = [
+      ...(share('read', 'search', 'list') >= 0.3 ? tips('f.shell.read', 3) : []),
+      ...(share('test', 'build') >= 0.15 ? tips('f.shell.test', 2) : []),
+      ...(share('script', 'write') >= 0.2 ? tips('f.shell.script', 1) : []),
+      t('f.shell.tipCarry'), t('f.shell.tipImpact'),
+    ];
+    F.push({ level: 'warn', impact: usd(shell.carryCost * 0.5), title: t('f.shell.title', { cost: usd(shell.total), pct: pct(shell.total, total) }),
+      body: t('f.shell.body', { n: num(shell.calls), tokens: tok(shell.ctxTokens), per: tok(shell.ctxTokens / Math.max(1, shell.calls)), carry: usd(shell.carryCost), kinds: list }), tips: shellTips });
+  }
 
   const rd = cat('Reading & searching code'), ed = cat('Editing files');
   if (rd.total + ed.total > total * 0.15) F.push({ level: 'warn', impact: usd((rd.carryCost + ed.carryCost) * 0.3), title: t('f.files.title', { cost: usd(rd.total + ed.total), pct: pct(rd.total + ed.total, total) }),

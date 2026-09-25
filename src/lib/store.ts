@@ -3,9 +3,9 @@ import path from 'node:path';
 import os from 'node:os';
 import { Scanner, CACHE_VERSION, type Session } from './parser';
 import { categoryOf, mergeBuckets, type Bucket } from './analyze';
-import { PRICES, shortModel, costOf, emptyUsage, addUsage, type Usage } from './pricing';
+import { PRICES, shortModel, costOf, priceFor, emptyUsage, addUsage, type Usage } from './pricing';
 import { loadPrices } from './prices';
-import type { Overview, Breakdown, Lifetime, SessionDetail, ProjectRow, SessionRow, DayRow, BucketRow, CategoryRow, HeavyRow, SubRunRow, LongSession, MissSession } from './types';
+import type { Overview, Breakdown, Lifetime, SessionDetail, ProjectRow, SessionRow, DayRow, BucketRow, CategoryRow, HeavyRow, SubRunRow, LongSession, MissSession, ShellKindRow } from './types';
 
 export const CLAUDE_HOME = process.env.CLAUDE_HOME || path.join(os.homedir(), '.claude');
 export const CLAUDE_DIR = process.env.CLAUDE_DIR || path.join(CLAUDE_HOME, 'projects');
@@ -219,7 +219,8 @@ export function breakdown(scanner: Scanner, q: Query): Breakdown {
   const commands: Record<string, number> = {};
   const efforts: Record<string, number> = {};
   const subRuns: Record<string, SubRunRow> = {};
-  let total = 0, totalMain = 0, think = 0, output = 0, sessionsN = 0;
+  let total = 0, totalMain = 0, think = 0, thinkCost = 0, output = 0, sessionsN = 0;
+  const shell: Record<string, ShellKindRow> = {};
   const longSessions: LongSession[] = [];
   const missSessions: MissSession[] = [];
   const modelCost: Record<string, number> = {};
@@ -239,6 +240,13 @@ export function breakdown(scanner: Scanner, q: Query): Breakdown {
       x.runs++; x.cost += r.cost; x.calls += r.calls; x.tokens += r.tokens;
     }
     think += s.think; output += s.usage.output;
+    // thinking is billed as output, at each model's own output price
+    for (const t of s.turnList) if (t.think) thinkCost += costOf(t.model, { input: 0, output: t.think, cw5: 0, cw1: 0, cr: 0 }) || 0;
+    for (const [kind, v] of Object.entries(s.analysis.shell)) {
+      const x = shell[kind] || (shell[kind] = { kind, calls: 0, ctxTokens: 0, ingestCost: 0, carryCost: 0, outCost: 0, total: 0 });
+      x.calls += v.calls; x.ctxTokens += v.ctxTokens; x.ingestCost += v.ingestCost; x.carryCost += v.carryCost; x.outCost += v.outCost;
+      x.total += v.ingestCost + v.carryCost + v.outCost;
+    }
     if (s.analysis.startupTokens) { startupSum += s.analysis.startupTokens; startupN++; }
     for (const [m, v] of Object.entries(s.byModel)) {
       modelCost[m] = (modelCost[m] || 0) + v.cost;
@@ -255,11 +263,19 @@ export function breakdown(scanner: Scanner, q: Query): Breakdown {
     }
   }
 
-  // what-if: every Opus call billed at Sonnet rates
+  // what-if: every Opus call billed at Sonnet rates. How much that saves depends on the Opus version's prices,
+  // so the per-token ratios go along (output and cache reads are the ones that differ most between versions).
   const whatIf: Breakdown['whatIf'] = {};
+  const son = priceFor('claude-sonnet-5');
   for (const [m, u] of Object.entries(modelUsage)) {
-    if (/opus/.test(m)) whatIf[m] = { current: modelCost[m], asSonnet: costOf('claude-sonnet-5', u) };
+    if (!/opus/.test(m)) continue;
+    const p = priceFor(m);
+    whatIf[m] = { current: modelCost[m], asSonnet: costOf('claude-sonnet-5', u), outRatio: p && son ? p[1] / son[1] : null, crRatio: p && son ? p[4] / son[4] : null };
   }
+  // what re-reading a 450k-token history costs once, on the model that got the most spend
+  const top = Object.entries(modelCost).filter(([m]) => m !== '<synthetic>').sort((a, b) => b[1] - a[1])[0];
+  const topPrice = top ? priceFor(top[0]) : null;
+  const reread = top && topPrice ? { model: top[0], cost: 450000 * topPrice[4] / 1e6 } : null;
 
   const list: BucketRow[] = Object.values(buckets).map((b) => ({ ...b, category: categoryOf(b.key) })).sort((a, b) => b.total - a.total);
   const categories: Record<string, CategoryRow> = {};
@@ -280,7 +296,9 @@ export function breakdown(scanner: Scanner, q: Query): Breakdown {
     heavy: heavy.slice(0, 40),
     subRuns: Object.values(subRuns).sort((a, b) => b.cost - a.cost),
     commands: Object.entries(commands).map(([c, n]) => ({ command: c, count: n })).sort((a, b) => b.count - a.count),
-    efforts, think, output,
+    efforts, think, thinkCost, output,
+    shellKinds: Object.values(shell).sort((a, b) => b.total - a.total),
+    reread,
     avgStartup: startupN ? Math.round(startupSum / startupN) : 0,
     longSessions: longSessions.slice(0, 15),
     missSessions: missSessions.slice(0, 15),
@@ -409,8 +427,8 @@ export function sessionDetail(scanner: Scanner, id: string): SessionDetail | nul
     return { ts: t.ts, model: t.model, input: t.input, output: t.output, cw5: t.cw5, cw1: t.cw1, cr: t.cr, cost: t.cost, cum, sub: t.sub, think: t.think || 0 };
   });
   const buckets: BucketRow[] = Object.values(s.analysis.buckets).map((b) => ({ ...b, category: categoryOf(b.key) })).sort((a, b) => b.total - a.total);
-  const { subRuns: _subRuns, ...analysis } = s.analysis;
-  void _subRuns;
+  const { subRuns: _subRuns, shell: _shell, ...analysis } = s.analysis;
+  void _subRuns; void _shell;
   return {
     id: s.id, projectDir: s.projectDir, projectKey: s.projectKey, cwd: s.cwd, project: projectName(s.cwd, s.projectDir),
     title: s.title, agentName: s.agentName, version: s.version, gitBranch: s.gitBranch, archived: s.archived,

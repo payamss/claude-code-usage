@@ -55,8 +55,12 @@ export interface HeavyItem {
   call: number;
 }
 
+/** Shell commands of one kind (cat/sed reads, grep, tests, …): the Shell bucket split up */
+export interface ShellStat { calls: number; ctxTokens: number; ingestCost: number; carryCost: number; outCost: number }
+
 export interface Analysis {
   buckets: Record<string, Bucket>;
+  shell: Record<string, ShellStat>;
   calls: CallStat[];
   heavy: HeavyItem[];
   startupTokens: number;
@@ -90,8 +94,10 @@ export function analyzeConversation(data: FileData): Analysis {
   const B = (key: string, label?: string) => buckets[key] || (buckets[key] = emptyBucket(key, label));
   const calls: CallStat[] = [];
   const heavy: HeavyItem[] = [];
+  const shell: Record<string, ShellStat> = {};
+  const SH = (kind: string) => shell[kind] || (shell[kind] = { calls: 0, ctxTokens: 0, ingestCost: 0, carryCost: 0, outCost: 0 });
   const out: Analysis = {
-    buckets, calls, heavy, startupTokens: 0, avgCtx: 0, peakCtx: 0, resets: 0, misses: 0,
+    buckets, shell, calls, heavy, startupTokens: 0, avgCtx: 0, peakCtx: 0, resets: 0, misses: 0,
     missCost: 0, crCost: 0, totalCost: 0, totalNewTokens: 0, totalCarry: 0,
   };
   if (n === 0) return out;
@@ -170,6 +176,10 @@ export function analyzeConversation(data: FileData): Analysis {
       out.totalCarry += tk * S[k];
       if (it.tool) {
         if (!it.tool.pseudo) b.calls++;
+        if (it.tool.kind) {
+          const sh = SH(it.tool.kind);
+          sh.calls++; sh.ctxTokens += tk; sh.ingestCost += tk * cwPrice[k]; sh.carryCost += tk * S[k];
+        }
         if (tk > 2000) heavy.push({ name: it.tool.name, label: it.tool.label, key: it.tool.key, tokens: Math.round(tk), ingestCost: tk * cwPrice[k], carryCost: tk * S[k], ts: t.ts, call: k });
       }
     }
@@ -180,6 +190,7 @@ export function analyzeConversation(data: FileData): Analysis {
       for (const ti of t.tools) {
         const tool = tools[ti];
         if (tool) B(tool.key, tool.label).outCost += oc / t.tools.length;
+        if (tool && tool.kind) SH(tool.kind).outCost += oc / t.tools.length;
       }
     } else {
       B('assistant').outCost += oc;

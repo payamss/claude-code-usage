@@ -4,7 +4,7 @@ import readline from 'node:readline';
 import { costOf, emptyUsage, addUsage, type Usage } from './pricing';
 import { analyzeConversation, mergeBuckets, type Analysis, type Bucket, type HeavyItem } from './analyze';
 
-export const CACHE_VERSION = 10;
+export const CACHE_VERSION = 11;
 
 // Output tokens per written character (text + tool input) and per character of a thinking block's
 // signature (thinking text itself is redacted). Fitted on complete messages: within ~2% in aggregate.
@@ -35,6 +35,7 @@ export interface ToolUse {
   inChars: number;
   resChars: number;
   pseudo?: boolean;
+  kind?: ShellKind; // shell commands only: what the command does
 }
 
 export interface Prompt { ts: string; text: string }
@@ -85,6 +86,7 @@ export interface SubRun {
 
 export interface SessionAnalysis {
   buckets: Record<string, Bucket>;
+  shell: Analysis['shell']; // main conversation only, like the Shell bucket
   calls: Analysis['calls'];
   heavy: HeavyItem[];
   startupTokens: number;
@@ -208,6 +210,28 @@ export function toolKey(name: string, input: Json): [string, string] {
   return ['tool:' + name, name];
 }
 
+export const SHELL_KINDS = ['read', 'write', 'search', 'list', 'test', 'build', 'git', 'script', 'install', 'net', 'other'] as const;
+export type ShellKind = typeof SHELL_KINDS[number];
+
+/** What a shell command mostly does, judged by its first real command (after cd / env assignments). */
+export function shellKind(cmd: string): ShellKind {
+  const c = cmd.replace(/^\s*(?:(?:cd|Set-Location)\s+(?:"[^"]*"|'[^']*'|\S+)\s*(?:&&|;)\s*|[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|\S*)\s*(?:&&|;)?\s*|export\s+\S+\s*(?:&&|;)\s*)+/, '').trim();
+  // only the first command of the first line: a heredoc body is data, not the command
+  const head = c.split(/\r?\n/)[0].split(/\s*(?:\||&&|;)\s*/)[0];
+  const w = head.split(/\s+/), first = (w[0] || '').replace(/^.*[\\/]/, '').replace(/\.exe$/i, '').toLowerCase(), two = w.slice(0, 2).join(' ').toLowerCase();
+  if (/\b(test|tests|jest|vitest|pytest|mocha|playwright)\b/i.test(head) && !/^(git|cat|sed|grep|rg|ls|find)$/.test(first)) return 'test';
+  if (/\b(build|tsc|lint|eslint|compile|check|clippy)\b/i.test(head) && !/^(git|cat|sed|grep|rg|ls|find)$/.test(first)) return 'build';
+  if (/^(npm|pnpm|yarn|pip|pip3|cargo|dotnet)\s+(i|install|add|ci)\b/i.test(two) || (/^(npx|winget|choco|apt|apt-get|brew)$/.test(first) && /\binstall\b/.test(head))) return 'install';
+  if ((first === 'cat' && /^cat\s*(>|<<)/.test(head)) || /^(tee|set-content|out-file|add-content)$/.test(first)) return 'write';
+  if (/^(cat|type|get-content|gc|head|tail|less|more|bat|nl)$/.test(first) || (first === 'sed' && !/\s-i\b/.test(head))) return 'read';
+  if (/^(grep|rg|egrep|fgrep|ag|ack|select-string|findstr|sls)$/.test(first)) return 'search';
+  if (/^(ls|dir|find|get-childitem|gci|tree|wc|du|stat|file|measure-object)$/.test(first)) return 'list';
+  if (first === 'git' || first === 'gh') return 'git';
+  if (/^(curl|wget|invoke-webrequest|invoke-restmethod|iwr|irm)$/.test(first)) return 'net';
+  if (/^(node|python|python3|py|deno|bun|tsx|ts-node|npx|ruby|php|perl|powershell|pwsh|bash|sh)$/.test(first)) return 'script';
+  return 'other';
+}
+
 /** Parses one JSONL transcript (main session or subagent) and returns the raw facts. */
 export async function parseFile(file: string, isSubagent: boolean): Promise<FileData> {
   const r: FileData = {
@@ -287,7 +311,7 @@ export async function parseFile(file: string, isSubagent: boolean): Promise<File
             if (toolById.has(k)) continue;
             const [bk, label] = toolKey(b.name, b.input);
             const idx = r.tools.length;
-            r.tools.push({ call: ti, id: b.id, name: b.name, key: bk, label, inChars: JSON.stringify(b.input || {}).length, resChars: 0 });
+            r.tools.push({ call: ti, id: b.id, name: b.name, key: bk, label, inChars: JSON.stringify(b.input || {}).length, resChars: 0, ...(bk === 'tool:Shell' ? { kind: shellKind(String((b.input && b.input.command) || '')) } : {}) });
             toolById.set(k, idx);
             if (b.id) toolById.set(b.id, idx);
             turn.tools.push(idx);
@@ -586,7 +610,7 @@ export class Scanner {
         stopReasons: main.stopReasons,
         turnList: turns,
         analysis: {
-          buckets, calls: mainA.calls, heavy: mainA.heavy, startupTokens: mainA.startupTokens, avgCtx: mainA.avgCtx, peakCtx: mainA.peakCtx,
+          buckets, shell: mainA.shell, calls: mainA.calls, heavy: mainA.heavy, startupTokens: mainA.startupTokens, avgCtx: mainA.avgCtx, peakCtx: mainA.peakCtx,
           resets: mainA.resets, misses: mainA.misses, missCost: mainA.missCost, crCost: mainA.crCost, subRuns,
         },
       });

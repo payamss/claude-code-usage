@@ -45,14 +45,18 @@ export interface SubRunRow { type: string; runs: number; cost: number; calls: nu
 export interface LongSession { id: string; title: string; project: string; cost: number; crCost: number; avgCtx: number; peakCtx: number; calls: number; prompts: number; wallMs: number; resets: number }
 export interface MissSession { id: string; title: string; project: string; misses: number; missCost: number; cost: number }
 
+export interface ShellKindRow { kind: string; calls: number; ctxTokens: number; ingestCost: number; carryCost: number; outCost: number; total: number }
+
 export interface Breakdown {
   range: { from: string | null; to: string | null; project: string | null };
   sessions: number; total: number; totalMain: number; attributed: number;
   buckets: BucketRow[]; categories: CategoryRow[]; heavy: HeavyRow[]; subRuns: SubRunRow[];
   commands: { command: string; count: number }[]; efforts: Record<string, number>;
-  think: number; output: number; avgStartup: number;
+  think: number; thinkCost: number; output: number; avgStartup: number;
   longSessions: LongSession[]; missSessions: MissSession[];
-  whatIf: Record<string, { current: number; asSonnet: number | null }>;
+  whatIf: Record<string, { current: number; asSonnet: number | null; outRatio: number | null; crRatio: number | null }>;
+  shellKinds: ShellKindRow[];
+  reread: { model: string; cost: number } | null;
 }
 
 export interface LifetimeModel extends Usage { model: string; short: string; cost: number }
